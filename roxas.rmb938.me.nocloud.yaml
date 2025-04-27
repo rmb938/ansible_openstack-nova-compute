@@ -1,0 +1,51 @@
+datasource:
+  NoCloud:
+    meta-data: |
+      instance-id: 74211b50-4c60-46f9-a7e7-4a4c695f409f
+      local-hostname: roxas.rmb938.me
+      hostname: roxas
+    network-config: |
+      {
+      "config": [
+        {
+        "mac_address": "90:5a:08:13:19:6e",
+        "name": "eno1",
+        "subnets": [
+          {
+          "address": "192.168.23.12",
+          "gateway": "192.168.23.254",
+          "netmask": "255.255.255.0",
+          "type": "static"
+          },
+          {
+          "type": "dhcp6"
+          }
+        ],
+        "type": "physical"
+        },
+        {
+        "address": [
+          "192.168.23.254"
+        ],
+        "search": [
+          "rmb938.me"
+        ],
+        "type": "nameserver"
+        }
+      ],
+      "version": 1
+      }
+    user-data: |
+      #cloud-config
+      manage_etc_hosts: true
+      hostname: roxas
+      fqdn: roxas.rmb938.me
+      users:
+        - name: ubuntu
+          lock_passwd: True
+          gecos: Ubuntu
+          groups: [adm, cdrom, dip, lxd, sudo]
+          sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+          shell: /bin/bash
+          ssh_authorized_keys:
+            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFutfN7VVJImc1/URq84u6Vn/85Qj9G3B1zqORh31TT9 rbelgrave@magic-pie.rmb938.me

@@ -1,0 +1,230 @@
+# Start Install
+- name: UBUNTU CLOUD KEYRING
+  ansible.builtin.package:
+    name: ubuntu-cloud-keyring
+    state: present
+
+- name: INSTALL OPENSTACK REPO
+  ansible.builtin.apt_repository:
+    repo: deb http://ubuntu-cloud.archive.canonical.com/ubuntu noble-updates/dalmatian main
+
+- name: INSTALL NOVA
+  ansible.builtin.package:
+    name:
+      - nova-compute
+      - nfs-common
+    state: present
+  register: install_nova
+
+- name: GET PACKAGE FACTS
+  ansible.builtin.package_facts:
+    manager: "auto"
+
+- name: DISABLE Nova Services # noqa: no-handler
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - nova-compute
+  when: install_nova.changed
+
+- name: Own nova dir
+  ansible.builtin.file:
+    path: /etc/nova
+    owner: nova
+    group: nova
+    mode: "0750"
+    state: directory
+    recurse: true
+
+- name: Place Nova compute_id
+  ansible.builtin.copy:
+    src: /sys/class/dmi/id/product_uuid
+    dest: /var/lib/nova/compute_id
+    remote_src: true
+    owner: nova
+    group: nova
+    mode: "0750"
+
+- name: INSTALL NEUTRON
+  ansible.builtin.package:
+    name:
+      - ovn-host
+      - ovn-common
+      - neutron-ovn-metadata-agent
+      - python3-unbound
+    state: present
+  register: install_neutron
+
+- name: DISABLE NEUTRON Services # noqa: no-handler
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - neutron-ovn-metadata-agent
+  when: install_neutron.changed
+
+- name: Own neutron dir
+  ansible.builtin.file:
+    path: /etc/neutron
+    owner: neutron
+    group: neutron
+    mode: "0750"
+    state: directory
+    recurse: true
+# End Install
+
+# Start OVN
+# TODO: just move this to a script that neutron consul template can run
+# TODO: need to setup ssl first
+# ovs-vsctl set-ssl /etc/openvswitch/sc-privkey.pem \
+#    /etc/openvswitch/sc-cert.pem /etc/openvswitch/cacert.pem
+# https://github.com/openvswitch/ovs-issues/issues/144
+- name: OVN SET REMOTE DATABASE
+  # TODO: find this from consul somehow
+  ansible.builtin.command: >-
+    /usr/bin/ovs-vsctl set open .
+    external-ids:ovn-remote=ssl:openstack-ovn-northd-1.node.consul:6642,ssl:openstack-ovn-northd-2.node.consul:6642,ssl:openstack-ovn-northd-3.node.consul:6642
+  changed_when: false
+
+- name: OVN SET ENCAP TYPE
+  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-encap-type=geneve"
+  changed_when: false
+
+# TODO: 10g port 0
+# - name: OVN SET ENCAP IP
+#   ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-encap-ip={10g port 0}"
+#   changed_when: false
+
+- name: OVN ENABLE CASSIS AS GATEWAY
+  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-cms-options=enable-chassis-as-gw"
+  changed_when: false
+
+- name: OVS create manager
+  ansible.builtin.command: "/usr/bin/ovs-vsctl --id @manager create Manager target='ptcp\\:6640\\:127.0.0.1' -- add Open_vSwitch . manager_options @manager"
+  changed_when: false
+  failed_when: false
+
+- name: OVS PROVIDER BRIDGE
+  ansible.builtin.command: "/usr/bin/ovs-vsctl --may-exist add-br br-provider -- set bridge br-provider protocols=OpenFlow13"
+  changed_when: false
+
+- name: OVS PROVIDER MAPPING
+  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-bridge-mappings=provider:br-provider"
+  changed_when: false
+
+# TODO: 10g port 1
+# - name: OVS PROVIDER ADD PORT
+#   ansible.builtin.command: "/usr/bin/ovs-vsctl --may-exist add-port br-provider ${10g port 1}"
+#   changed_when: false
+# End OVN Setup
+
+# Start Consul Template Nova
+- name: Add nova to sudoers
+  community.general.sudoers:
+    name: nova
+    user: nova
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart nova-compute
+    state: present
+
+- name: Configure Consul Template for Nova
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-nova.hcl
+    dest: /etc/consul-template/consul-template-nova.hcl
+    mode: "0644"
+    owner: nova
+    group: nova
+
+- name: Create Consul Template for Nova Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/nova/
+    state: directory
+    mode: "0744"
+    owner: nova
+    group: nova
+
+- name: Place Consul Template for Nova Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/nova/{{ item | basename }}"
+    mode: "0644"
+    owner: nova
+    group: nova
+  with_fileglob:
+    - ../files/etc/consul-template/templates/nova/*.ctmpl
+
+- name: Place Consul Template for Nova Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/nova/{{ item | basename }}"
+    mode: "0644"
+    owner: nova
+    group: nova
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/nova/*.ctmpl
+
+- name: Consul Template for Nova SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-nova.service
+    dest: /etc/systemd/system/consul-template-nova.service
+    mode: "0644"
+# End Consul Template Nova
+
+# Start Consul Template Neutron
+- name: Add neutron to sudoers
+  community.general.sudoers:
+    name: neutron
+    user: neutron
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/bin/systemctl reload-or-restart neutron-ovn-metadata-agent
+    state: present
+
+- name: Configure Consul Template for Neutron
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-neutron.hcl
+    dest: /etc/consul-template/consul-template-neutron.hcl
+    mode: "0644"
+    owner: neutron
+    group: neutron
+
+- name: Create Consul Template for Neutron Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/neutron/
+    state: directory
+    mode: "0744"
+    owner: neutron
+    group: neutron
+
+- name: Place Consul Template for Neutron Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/neutron/{{ item | basename }}"
+    mode: "0644"
+    owner: neutron
+    group: neutron
+  with_fileglob:
+    - ../files/etc/consul-template/templates/neutron/*.ctmpl
+
+- name: Place Consul Template for Neutron Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/neutron/{{ item | basename }}"
+    mode: "0644"
+    owner: neutron
+    group: neutron
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/neutron/*.ctmpl
+
+- name: Consul Template for Neutron SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-neutron.service
+    dest: /etc/systemd/system/consul-template-neutron.service
+    mode: "0644"
+# End Consul Template Neutron

@@ -1,0 +1,9 @@
+# Used to re-render every boot so the service starts
+{% raw %}
+# Boot ID - {{ file "/proc/sys/kernel/random/boot_id" }}
+{% endraw %}
+{{- with pkiCert "pki_openstack_ovn_ovsdb_intermediate/issue/user-neutron-compute" "common_name=neutron-compute" -}}
+{{ .Cert }}{{ .CA }}{{ .CAChain }}{{ .Key }}
+{{ .Key | writeToFile "/etc/neutron/ovn-sb-ovsdb-user-neutron.key" "" "" "0600" }}
+{{ (printf "%s%s" .Cert (.CAChain | join "")) | writeToFile "/etc/neutron/ovn-sb-ovsdb-user-neutron.crt" "" "" "0644" }}
+{{- end -}}

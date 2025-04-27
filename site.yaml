@@ -1,0 +1,33 @@
+- name: Bootstrap
+  hosts: all
+  become: true
+  remote_user: ubuntu
+  roles:
+    - rmb938.bootstrap
+  vars:
+    step_ca_url: "https://step-ca.us-homelab1.hl.rmb938.me"
+    step_ca_fingerprint: "111301fb085dfc83f5390c0be68df3d68f5584853df0cb4c442383c33f2bd83a"
+
+- name: Application
+  hosts: all
+  become: true
+  remote_user: ubuntu
+  roles:
+    - rmb938.application
+  vars:
+    step_ca_url: "https://step-ca.us-homelab1.hl.rmb938.me"
+    step_ra_acme_url: "https://step-ca.us-homelab1.hl.rmb938.me:8443"
+
+- name: Application Setup
+  hosts: all
+  become: true
+  remote_user: ubuntu
+  roles:
+    - application_setup
+
+- name: Nova Compute
+  hosts: all
+  become: true
+  remote_user: ubuntu
+  roles:
+    - nova-compute
