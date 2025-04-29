@@ -44,7 +44,7 @@ template {
   }
 }
 
-# OVN NSB OVSDB CA
+# OVN SB OVSDB CA
 template {
   source = "/etc/consul-template/templates/neutron/ovn-sb-ovsdb-ca.crt.ctmpl"
   destination = "/etc/neutron/ovn-sb-ovsdb-ca.crt"

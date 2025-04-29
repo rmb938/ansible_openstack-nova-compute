@@ -1,3 +1,6 @@
+# {{ ansible_managed }}
+# Consul Template Managed - Nova
+
 [DEFAULT]
 
 #
@@ -277,7 +280,7 @@
 # host rebooted. It ensures that all of the instances on a Nova compute node
 # resume their state each time the compute node boots or restarts.
 #  (boolean value)
-#resume_guests_state_on_host_boot = false
+resume_guests_state_on_host_boot = true
 
 #
 # Number of times to retry network allocation. It is required to attempt network
@@ -6087,7 +6090,7 @@ novncproxy_base_url = https://openstack-nova-novncproxy.haproxy.us-homelab1.hl.r
 # :oslo.config:option:`DEFAULT.instances_path` is on different disk partition
 # than the image cache directory then the driver will not reserve resource for
 # the cache. For more information, refer to the documentation. (boolean value)
-#reserve_disk_resource_for_image_cache = false
+reserve_disk_resource_for_image_cache = true
 
 #
 # With some kernels initializing the guest apic can result in a kernel hang that
@@ -6114,7 +6117,7 @@ novncproxy_base_url = https://openstack-nova-novncproxy.haproxy.us-homelab1.hl.r
 # the announce-self command to the QEMU monitor so that it generates RARP frames
 # to update network switches in the post live migration phase on the
 # destination. For more information, refer to the documentation. (boolean value)
-#enable_qemu_monitor_announce_self = false
+enable_qemu_monitor_announce_self = true
 
 #
 # The total number of times to send the announce_self command to the QEMU

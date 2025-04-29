@@ -1,3 +1,16 @@
+---
+# Start Cloud Init Scripts
+- name: Cloud Init Scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/var/lib/cloud/scripts/custom-per-boot/{{ item | basename }}"
+    mode: "0755"
+    owner: root
+    group: root
+  with_fileglob:
+    - ../files/var/lib/cloud/scripts/custom-per-boot/*.sh
+# End Cloud Init Scripts
+
 # Start Install
 - name: UBUNTU CLOUD KEYRING
   ansible.builtin.package:
@@ -50,8 +63,6 @@
 - name: INSTALL NEUTRON
   ansible.builtin.package:
     name:
-      - ovn-host
-      - ovn-common
       - neutron-ovn-metadata-agent
       - python3-unbound
     state: present
@@ -74,52 +85,149 @@
     mode: "0750"
     state: directory
     recurse: true
+
+- name: Install OVN
+  ansible.builtin.package:
+    name:
+      - ovn-host
+      - ovn-common
+    state: present
+  register: install_ovn
+
+- name: DISABLE OVN Services # noqa: no-handler
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - ovn-controller
+    - ovn-host
+  when: install_ovn.changed
+
+- name: Create openstack-services group
+  ansible.builtin.group:
+    name: openstack-services
+    gid: 64100
+    state: present
+
+- name: Add nova user to openstack-services group
+  ansible.builtin.user:
+    name: nova
+    groups: openstack-services
+    append: true
+
+- name: Add libvirt-qemu user to openstack-services group
+  ansible.builtin.user:
+    name: libvirt-qemu
+    groups: openstack-services
+    append: true
 # End Install
 
+# Start LibvirtD
+- name: Configure libvirtd qemu
+  ansible.builtin.template:
+    src: etc/libvirt/qemu.conf
+    dest: /etc/libvirt/qemu.conf
+    mode: "0600"
+    owner: root
+    group: root
+  register: libvertd_qemu_conf
+
+- name: Restart libvirtd # noqa: no-handler
+  ansible.builtin.systemd_service:
+    name: libvirtd.service
+    state: restarted
+  when: libvertd_qemu_conf.changed
+# End LibvirtD
+
 # Start OVN
-# TODO: just move this to a script that neutron consul template can run
-# TODO: need to setup ssl first
-# ovs-vsctl set-ssl /etc/openvswitch/sc-privkey.pem \
-#    /etc/openvswitch/sc-cert.pem /etc/openvswitch/cacert.pem
-# https://github.com/openvswitch/ovs-issues/issues/144
-- name: OVN SET REMOTE DATABASE
-  # TODO: find this from consul somehow
-  ansible.builtin.command: >-
-    /usr/bin/ovs-vsctl set open .
-    external-ids:ovn-remote=ssl:openstack-ovn-northd-1.node.consul:6642,ssl:openstack-ovn-northd-2.node.consul:6642,ssl:openstack-ovn-northd-3.node.consul:6642
-  changed_when: false
+- name: Create ovn user
+  ansible.builtin.user:
+    name: ovn
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    home: /var/lib/ovn
 
-- name: OVN SET ENCAP TYPE
-  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-encap-type=geneve"
-  changed_when: false
+- name: Create OVN OVS config dir
+  ansible.builtin.file:
+    path: /etc/ovn-ovs
+    owner: ovn
+    group: ovn
+    mode: '0755'
+    state: directory
 
-# TODO: 10g port 0
-# - name: OVN SET ENCAP IP
-#   ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-encap-ip={10g port 0}"
-#   changed_when: false
+- name: Create OVN share
+  ansible.builtin.file:
+    path: /usr/local/share/ovn
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
 
-- name: OVN ENABLE CASSIS AS GATEWAY
-  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-cms-options=enable-chassis-as-gw"
-  changed_when: false
+- name: Place OVN configure script
+  ansible.builtin.copy:
+    src: usr/local/share/ovn/configure
+    dest: /usr/local/share/ovn/configure
+    owner: root
+    group: root
+    mode: "0755"
+# End OVN
 
-- name: OVS create manager
-  ansible.builtin.command: "/usr/bin/ovs-vsctl --id @manager create Manager target='ptcp\\:6640\\:127.0.0.1' -- add Open_vSwitch . manager_options @manager"
-  changed_when: false
-  failed_when: false
+# Start Consul Template OVN
+- name: Add ovn to sudoers
+  community.general.sudoers:
+    name: ovn
+    user: ovn
+    nopassword: true
+    validation: required
+    commands:
+      - /usr/local/share/ovn/configure
+      - /usr/bin/systemctl reload-or-restart ovn-controller
+    state: present
 
-- name: OVS PROVIDER BRIDGE
-  ansible.builtin.command: "/usr/bin/ovs-vsctl --may-exist add-br br-provider -- set bridge br-provider protocols=OpenFlow13"
-  changed_when: false
+- name: Configure Consul Template for OVN
+  ansible.builtin.template:
+    src: etc/consul-template/consul-template-ovn.hcl
+    dest: /etc/consul-template/consul-template-ovn.hcl
+    mode: "0644"
+    owner: ovn
+    group: ovn
 
-- name: OVS PROVIDER MAPPING
-  ansible.builtin.command: "/usr/bin/ovs-vsctl set open . external-ids:ovn-bridge-mappings=provider:br-provider"
-  changed_when: false
+- name: Create Consul Template for OVN Templates directory
+  ansible.builtin.file:
+    path: /etc/consul-template/templates/ovn/
+    state: directory
+    mode: "0744"
+    owner: ovn
+    group: ovn
 
-# TODO: 10g port 1
-# - name: OVS PROVIDER ADD PORT
-#   ansible.builtin.command: "/usr/bin/ovs-vsctl --may-exist add-port br-provider ${10g port 1}"
-#   changed_when: false
-# End OVN Setup
+- name: Place Consul Template for OVN Templates Files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/ovn/{{ item | basename }}"
+    mode: "0644"
+    owner: ovn
+    group: ovn
+  with_fileglob:
+    - ../files/etc/consul-template/templates/ovn/*.ctmpl
+
+- name: Place Consul Template for OVN Templates Templates
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/consul-template/templates/ovn/{{ item | basename }}"
+    mode: "0644"
+    owner: ovn
+    group: ovn
+  with_fileglob:
+    - ../templates/etc/consul-template/templates/ovn/*.ctmpl
+
+- name: Consul Template for OVN SystemD
+  ansible.builtin.template:
+    src: etc/systemd/system/consul-template-ovn.service
+    dest: /etc/systemd/system/consul-template-ovn.service
+    mode: "0644"
+# End Consul Template OVN
 
 # Start Consul Template Nova
 - name: Add nova to sudoers

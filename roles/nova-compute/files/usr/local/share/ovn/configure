@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -exuo pipefail
+
+# Setup Certs
+ovs-vsctl set-ssl /etc/ovn-ovs/ovn-sb-ovsdb-user-ovn-controller.key /etc/ovn-ovs/ovn-sb-ovsdb-user-ovn-controller.crt /etc/ovn-ovs/ovn-sb-ovsdb-ca.crt
+
+# Collect Consul Services and make connection endpoint
+
+endpoint=$(consul catalog nodes -service openstack-ovn-northd-sb-ovsdb | awk '{print $1}' | tail -n +2 | awk '
+  {
+    if (NR > 1) {
+      printf ","
+    }
+    printf "ssl:%s.node.consul:6642", $1
+  }')
+
+# Setup Connection
+ovs-vsctl set open . external-ids:ovn-remote=${endpoint}
