@@ -5964,23 +5964,23 @@ application_credential_secret = {{ .Data.application_credential_secret }}
 # Enable VNC related features. For more information, refer to the documentation.
 # (boolean value)
 # Deprecated group/name - [DEFAULT]/vnc_enabled
-enabled = true
+#enabled = true
 
 #
 # The IP address or hostname on which an instance should listen to for
 # incoming VNC connection requests on this node.
 #  (host address value)
-server_listen = $my_ip
+#server_listen = 127.0.0.1
 
 #
 # Private, internal IP address or hostname of VNC console proxy. For more
 # information, refer to the documentation. (host address value)
-server_proxyclient_address = $my_ip
+#server_proxyclient_address = 127.0.0.1
 
 #
 # Public address of noVNC VNC console proxy. For more information, refer to the
 # documentation. (uri value)
-novncproxy_base_url = https://openstack-nova-novncproxy.haproxy.us-homelab1.hl.rmb938.me/vnc_auto.html
+#novncproxy_base_url = http://127.0.0.1:6080/vnc_auto.html
 
 #
 # IP address that the noVNC console proxy should bind to. For more information,
