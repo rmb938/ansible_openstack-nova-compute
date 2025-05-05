@@ -57,7 +57,7 @@
 #
 # Defines which driver to use for controlling virtualization. For more
 # information, refer to the documentation. (string value)
-#compute_driver = <None>
+compute_driver = libvirt.LibvirtDriver
 
 #
 # Allow destination machine to match source for resize. Useful when
@@ -3090,7 +3090,7 @@ api_servers = https://openstack-glance.haproxy.us-homelab1.hl.rmb938.me
 # lxc - <No description provided>
 # qemu - <No description provided>
 # parallels - <No description provided>
-#virt_type = kvm
+virt_type = kvm
 
 #
 # Overrides the default libvirt URI of the chosen virtualization type. For more

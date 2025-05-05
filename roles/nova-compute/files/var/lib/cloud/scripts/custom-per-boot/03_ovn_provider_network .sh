@@ -27,6 +27,11 @@ if [[ -z "$teng_nic" ]]; then
 
   for nic in $(ls /sys/class/net); do
 
+    if [[ "$nic" == "br-"* ]]; then
+      echo "Skipping device starting with 'br-': $nic"
+      continue
+    fi
+
     mac_file="/sys/class/net/$nic/address"
 
      # Read the MAC address from the file
