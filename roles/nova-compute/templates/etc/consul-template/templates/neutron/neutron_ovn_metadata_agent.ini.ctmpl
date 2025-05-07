@@ -278,7 +278,7 @@ nova_metadata_protocol = https
 [ovn]
 
 {% raw %}
-ovn_nb_connection = {{range $index, $service := service "openstack-ovn-northd-nb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{.Node}}.node.consul:6641{{end}}
+ovn_nb_connection = {{range $index, $service := service "openstack-ovn-northd-nb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{ .Address }}:6641{{end}}
 {% endraw %}
 
 # The PEM file with private key for SSL connection to OVN-NB-DB (string value)
@@ -292,10 +292,8 @@ ovn_nb_certificate = /etc/neutron/ovn-nb-ovsdb-user-neutron.crt
 # presented to it by SSL peers (string value)
 ovn_nb_ca_cert = /etc/neutron/ovn-nb-ovsdb-ca.crt
 
-# TODO: nb certs
-
 {% raw %}
-ovn_sb_connection = {{range $index, $service := service "openstack-ovn-northd-sb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{.Node}}.node.consul:6642{{end}}
+ovn_sb_connection = {{range $index, $service := service "openstack-ovn-northd-sb-ovsdb|any"}}{{if ne $index 0}},{{end}}ssl:{{ .Address }}:6642{{end}}
 {% endraw %}
 
 # The PEM file with private key for SSL connection to OVN-SB-DB (string value)
