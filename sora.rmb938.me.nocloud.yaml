@@ -48,4 +48,5 @@ datasource:
           sudo: ["ALL=(ALL) NOPASSWD:ALL"]
           shell: /bin/bash
           ssh_authorized_keys:
-            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFutfN7VVJImc1/URq84u6Vn/85Qj9G3B1zqORh31TT9 rbelgrave@magic-pie.rmb938.me
+            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFutfN7VVJImc1/URq84u6Vn/85Qj9G3B1zqORh31TT9
+            - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPCGiaxV7RwUW0tez+Qk1kLPRJbbjDcAEGSw0EsARv/c
